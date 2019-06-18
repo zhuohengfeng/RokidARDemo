@@ -203,12 +203,17 @@ public abstract class ArRenderer extends org.rajawali3d.renderer.Renderer {
                 }
 
                 mBackgroundQuad = new ScreenQuad();
-                if(mArManager.getScreenOrientation() == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+                if(mArManager.getScreenOrientation() == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
                     mBackgroundQuad.setScaleY((float)height / (float)getVideoHeight());
-                else
+                }
+                else{
                     mBackgroundQuad.setScaleX((float)width / (float)getVideoWidth());
+                }
+//                mBackgroundQuad.setRotZ(180);
+
+                Logger.d("onConfigurationChanged: width="+width+", height="+height+", getScreenOrientation()="+mArManager.getScreenOrientation()
+                +", getVideoWidth()="+getVideoWidth()+", getVideoHeight()="+getVideoHeight());
                 mBackgroundQuad.setMaterial(material);
-                mBackgroundQuad.rotate(0, 0, 1, 180);
                 getCurrentScene().addChildAt(mBackgroundQuad, 0);
             }
             //------------------------------
@@ -321,8 +326,9 @@ public abstract class ArRenderer extends org.rajawali3d.renderer.Renderer {
             // Create GL matrix setting up the near and far planes
             float rawProjectionMatrixGL[] = Tool.convertPerspectiveProjection2GLMatrix(
                     projMatrix,
-                    mNearPlane,
-                    mFarPlane)
+                    0.01f, 5f//mNearPlane,
+                    //mFarPlane
+                    )
                     .getData();
 
             // Apply the appropriate eye adjustment to the raw projection matrix, and assign to the global variable
@@ -383,13 +389,13 @@ public abstract class ArRenderer extends org.rajawali3d.renderer.Renderer {
         // and the calibration ensures that the augmentation matches the real world
         if (Device.getInstance().isViewerActive())
         {
-//            float sceneScaleFactor = (float) getSceneScaleFactor(state.getCameraCalibration());
-//            Matrix.scaleM(vbProjectionMatrix, 0, sceneScaleFactor, sceneScaleFactor, 1.0f);
+            float sceneScaleFactor = (float) getSceneScaleFactor(state.getCameraCalibration());
+            Matrix.scaleM(vbProjectionMatrix, 0, sceneScaleFactor, sceneScaleFactor, 1.0f);
         }
 
-        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
-        GLES20.glDisable(GLES20.GL_CULL_FACE);
-        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+//        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+//        GLES20.glDisable(GLES20.GL_CULL_FACE);
+//        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
 
         // 开始绘制到模型上
         int frameBufferId = mBackgroundRenderTarget.getFrameBufferHandle();
@@ -416,6 +422,8 @@ public abstract class ArRenderer extends org.rajawali3d.renderer.Renderer {
         GLES20.glEnableVertexAttribArray(vbVertexHandle);
         GLES20.glEnableVertexAttribArray(vbTexCoordHandle);
 
+        // 这里做一下上下翻转
+        Matrix.rotateM(vbProjectionMatrix, 0, 180f, 1, 0, 0);
         // Pass the projection matrix to OpenGL
         GLES20.glUniformMatrix4fv(vbProjectionMatrixHandle, 1, false, vbProjectionMatrix, 0);
 

@@ -15,7 +15,7 @@ package com.ryan.rokidardemo.vuforia.utils;
  */
 public class VideoBackgroundShader
 {
-    
+
     public static final String VB_VERTEX_SHADER =
         "attribute vec4 vertexPosition;\n" +
         "attribute vec2 vertexTexCoord;\n" +

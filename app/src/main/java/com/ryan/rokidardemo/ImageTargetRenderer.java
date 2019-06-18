@@ -72,7 +72,7 @@ public class ImageTargetRenderer extends ArRenderer
     {
         super(activity,
                 Device.MODE.MODE_AR, manager.getVideoMode(),
-                false, 10 , 2500); //0.01f, 5f   10, 2500
+                false, 0.01f , 5f); //0.01f, 5f   10, 2500
 
         mActivityRef = new WeakReference<>(activity);
         mArManager = manager;
@@ -94,16 +94,15 @@ public class ImageTargetRenderer extends ArRenderer
         // 这里绘制相机
         this.renderVideoBackground(state);
 
-
         // Set the device pose matrix as identity
         Matrix44F devicePoseMatrix = SampleMath.Matrix44FIdentity();
         Matrix44F modelMatrix;
 
-        //GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
 
-        //GLES20.glEnable(GLES20.GL_CULL_FACE);
-        //GLES20.glCullFace(GLES20.GL_BACK);
-        //GLES20.glFrontFace(GLES20.GL_CCW);   // Back camera
+        GLES20.glEnable(GLES20.GL_CULL_FACE);
+        GLES20.glCullFace(GLES20.GL_BACK);
+        GLES20.glFrontFace(GLES20.GL_CCW);   // Back camera
 
         // Read device pose from the state and create a corresponding view matrix (inverse of the device pose)
         if (state.getDeviceTrackableResult() != null)
@@ -153,17 +152,16 @@ public class ImageTargetRenderer extends ArRenderer
                 Matrix.multiplyMM(modelMatrixArray, 0, viewMatrixArray, 0, modelMatrixArray, 0);
                 // Do the final combination with the projection matrix
                 Matrix.multiplyMM(modelViewProjection, 0, projectionMatrixArray, 0, modelMatrixArray, 0);
-                foundImageMarker(trackable.getName(), modelViewProjection);
-
+                //foundImageMarker(trackable.getName(), modelViewProjection);
 
                 // 识别到了，绘制模型
-                //renderModel(projectionMatrix, devicePoseMatrix.getData(), modelMatrix.getData(), textureIndex);
+                renderModel(projectionMatrix, devicePoseMatrix.getData(), modelMatrix.getData(), textureIndex);
 
                 SampleUtils.checkGLError("Image Targets renderFrame");
             }
         }
 
-        //GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
     }
 
     @Override

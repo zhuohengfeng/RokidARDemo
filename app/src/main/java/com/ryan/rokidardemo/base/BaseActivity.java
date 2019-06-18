@@ -5,6 +5,9 @@ import android.content.Context;
 import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 
 import com.ryan.rokidardemo.utils.Logger;
 import com.ryan.rokidardemo.vuforia.ArRenderer;
@@ -20,6 +23,14 @@ public class BaseActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().setFlags(
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
+                        | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
+                        | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        hideStatusNavigationBar();
+
         super.onCreate(savedInstanceState);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1)
@@ -61,6 +72,7 @@ public class BaseActivity extends Activity {
                 @Override
                 public void onDisplayRemoved(int displayId)
                 {
+
                 }
             };
 
@@ -102,5 +114,18 @@ public class BaseActivity extends Activity {
     public void setRendererReference(ArRenderer renderer)
     {
         mBaseRenderer = renderer;
+    }
+
+    private void hideStatusNavigationBar(){
+        if(Build.VERSION.SDK_INT<16){
+            this.getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        }else{
+            int uiFlags = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN //hide statusBar
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION; //hide navigationBar
+            getWindow().getDecorView().setSystemUiVisibility(uiFlags);
+        }
     }
 }

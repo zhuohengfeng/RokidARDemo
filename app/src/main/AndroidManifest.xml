@@ -22,9 +22,7 @@
         android:theme="@style/AppTheme">
         <activity
             android:name=".ImageTargetActivity"
-            android:screenOrientation="landscape"
-            android:noHistory="true"
-            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize">
+            android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
