@@ -72,7 +72,7 @@ public class ImageTargetRenderer extends ArRenderer
     {
         super(activity,
                 Device.MODE.MODE_AR, manager.getVideoMode(),
-                false, 0.01f , 5f); //0.01f, 5f   10, 2500
+                false, 0.01f , 100f); //0.01f, 5f   10, 2500
 
         mActivityRef = new WeakReference<>(activity);
         mArManager = manager;
@@ -315,7 +315,9 @@ public class ImageTargetRenderer extends ArRenderer
 
 //        getCurrentCamera().setFarPlane(100);
         getCurrentCamera().enableLookAt();
+        getCurrentCamera().setPosition(0, 0, 10);
         getCurrentCamera().setLookAt(0, 0, 0);
+
 
         try {
             settingItem = new Plane(8, 3, 1, 1);
@@ -330,7 +332,7 @@ public class ImageTargetRenderer extends ArRenderer
             }
 
             settingItem.setMaterial(sphereMaterial);
-            settingItem.setPosition(0, 0, -20);
+            settingItem.setPosition(0, 0, -10);
             getCurrentScene().addChildAt(settingItem, 0);
 
         } catch (Exception e) {

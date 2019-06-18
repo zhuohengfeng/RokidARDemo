@@ -326,8 +326,8 @@ public abstract class ArRenderer extends org.rajawali3d.renderer.Renderer {
             // Create GL matrix setting up the near and far planes
             float rawProjectionMatrixGL[] = Tool.convertPerspectiveProjection2GLMatrix(
                     projMatrix,
-                    0.01f, 5f//mNearPlane,
-                    //mFarPlane
+                    mNearPlane,
+                    mFarPlane
                     )
                     .getData();
 
