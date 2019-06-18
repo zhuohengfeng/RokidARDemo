@@ -34,6 +34,8 @@ public class ArManager implements Vuforia.UpdateCallbackInterface
 
     private int mVideoMode = CameraDevice.MODE.MODE_DEFAULT;
 
+    private int mScreenOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+
     // The async tasks that initialize the Vuforia Engine and Trackers:
     private InitVuforiaTask mInitVuforiaTask;
     private LoadTrackerTask mLoadTrackerTask;
@@ -70,6 +72,8 @@ public class ArManager implements Vuforia.UpdateCallbackInterface
         {
             screenOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR;
         }
+
+        mScreenOrientation = screenOrientation;
 
         // Apply screen orientation
         mActivityRef.get().setRequestedOrientation(screenOrientation);
@@ -745,5 +749,9 @@ public class ArManager implements Vuforia.UpdateCallbackInterface
         }
 
         return result;
+    }
+
+    public int getScreenOrientation() {
+        return mScreenOrientation;
     }
 }

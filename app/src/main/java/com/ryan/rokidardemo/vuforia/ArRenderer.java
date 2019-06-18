@@ -2,17 +2,22 @@ package com.ryan.rokidardemo.vuforia;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Point;
+import android.graphics.SurfaceTexture;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
 import android.os.Build;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
+import android.view.MotionEvent;
 import android.view.WindowManager;
 
+import com.ryan.rokidardemo.utils.Logger;
 import com.ryan.rokidardemo.vuforia.utils.SampleUtils;
+import com.ryan.rokidardemo.vuforia.utils.Texture;
 import com.ryan.rokidardemo.vuforia.utils.VideoBackgroundShader;
 import com.vuforia.CameraCalibration;
 import com.vuforia.CameraDevice;
@@ -33,17 +38,27 @@ import com.vuforia.VideoBackgroundConfig;
 import com.vuforia.VideoMode;
 import com.vuforia.ViewList;
 
+import org.rajawali3d.materials.Material;
+import org.rajawali3d.materials.textures.ATexture;
+import org.rajawali3d.math.Quaternion;
+import org.rajawali3d.math.vector.Vector3;
+import org.rajawali3d.primitives.ScreenQuad;
+import org.rajawali3d.renderer.RenderTarget;
+
 import java.lang.ref.WeakReference;
+import java.util.Vector;
+
+import javax.microedition.khronos.egl.EGLConfig;
+import javax.microedition.khronos.opengles.GL10;
 
 /**
  * Vuforia的渲染Renderer
  * 这个类主要是负责绘制相机背景的初始化等，并调用ImageTargetRender的renderFrame来绘制模型(如果识别到)和相机预览
  */
-public class ArRenderer {
+public abstract class ArRenderer extends org.rajawali3d.renderer.Renderer {
     private static final String LOGTAG = "SampleAppRenderer";
 
     private RenderingPrimitives mRenderingPrimitives = null;
-    private IArRendererControl mRenderingInterface;
     private WeakReference<Activity> mActivityRef;
 
     private int mVideoMode;
@@ -65,6 +80,8 @@ public class ArRenderer {
     // Display size of the device:
     private int mScreenWidth = 0;
     private int mScreenHeight = 0;
+    private int mVideoWidth = 0;
+    private int mVideoHeight = 0;
 
     // Stores orientation
     private boolean mIsPortrait = false;
@@ -72,14 +89,37 @@ public class ArRenderer {
 
     private boolean mIsRenderingInit = false;
 
+    // -----------for Rajawali ------------
+    private   Vector3      mPosition;
+    private   Quaternion   mOrientation;
+    protected ScreenQuad mBackgroundQuad;
+    protected RenderTarget mBackgroundRenderTarget;
+    private   double[]     mModelViewMatrix;
+    private int mI = 0;
 
-    public ArRenderer(IArRendererControl renderingInterface, Activity activity,
+//    protected ArRenderer mArRenderer;
+    protected ArManager mArManager;
+    protected Vector<Texture> mTextures;
+
+    // This method must be implemented by the Renderer class that handles the content rendering.
+    // This function is called for each view inside of a loop
+    abstract protected void renderFrame(State state, float[] projectionMatrix);
+
+    // Initializes shaders
+    abstract protected void initRendering();
+
+    abstract protected void onFoundImageMarker(String trackableName, Vector3 position, Quaternion orientation);
+    // ------------------------------------
+
+
+    public ArRenderer(Activity activity,
                              int deviceMode, int videoMode, boolean stereo,
                              float nearPlane, float farPlane)
     {
+        super(activity);
+
         mActivityRef = new WeakReference<>(activity);
 
-        mRenderingInterface = renderingInterface;
         mRenderer = Renderer.getInstance();
 
         if(farPlane < nearPlane)
@@ -88,7 +128,12 @@ public class ArRenderer {
             throw new IllegalArgumentException();
         }
 
+        // -----------------------------
+        mPosition = new Vector3();
+        mOrientation = new Quaternion();
+        mModelViewMatrix = new double[16];
         setNearFarPlanes(nearPlane, farPlane);
+        // -----------------------------
 
         if(deviceMode != Device.MODE.MODE_AR && deviceMode != Device.MODE.MODE_VR)
         {
@@ -109,9 +154,28 @@ public class ArRenderer {
         initArRendering();
     }
 
+    private double getFOV(CameraCalibration cameraCalibration) {
+        Vec2F size = cameraCalibration.getSize();
+        Vec2F focalLength = cameraCalibration.getFocalLength();
+        double fovRadians = 2 * Math.atan(0.5f * size.getData()[1] / focalLength.getData()[1]);
+        double fovDegrees = fovRadians * 180.0f / M_PI;
+        Logger.d("getFOV="+fovDegrees);
+        return fovDegrees;
+    }
+
+    private int getVideoWidth() {
+        Logger.d("getVideoWidth="+mVideoWidth);
+        return mVideoWidth;
+    }
+
+    private int getVideoHeight() {
+        Logger.d("getVideoHeight="+mVideoHeight);
+        return mVideoHeight;
+    }
+
     // Called whenever the device orientation or screen resolution changes
     // and we need to update the rendering primitives
-    public void onConfigurationChanged()
+    public void onConfigurationChanged(int width, int height)
     {
         updateActivityOrientation();
         storeScreenDimensions();
@@ -123,7 +187,32 @@ public class ArRenderer {
         // 初始化模型renderer
         if (!mIsRenderingInit)
         {
-            mRenderingInterface.initRendering();
+            this.initRendering();
+
+            //------------------------------
+            if(mBackgroundRenderTarget == null) {
+                mBackgroundRenderTarget = new RenderTarget("rajVuforia", width, height);
+
+                addRenderTarget(mBackgroundRenderTarget);
+                Material material = new Material();
+                material.setColorInfluence(0);
+                try {
+                    material.addTexture(mBackgroundRenderTarget.getTexture());
+                } catch (ATexture.TextureException e) {
+                    e.printStackTrace();
+                }
+
+                mBackgroundQuad = new ScreenQuad();
+                if(mArManager.getScreenOrientation() == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+                    mBackgroundQuad.setScaleY((float)height / (float)getVideoHeight());
+                else
+                    mBackgroundQuad.setScaleX((float)width / (float)getVideoWidth());
+                mBackgroundQuad.setMaterial(material);
+                mBackgroundQuad.rotate(0, 0, 1, 180);
+                getCurrentScene().addChildAt(mBackgroundQuad, 0);
+            }
+            //------------------------------
+
             mIsRenderingInit = true;
         }
     }
@@ -190,14 +279,20 @@ public class ArRenderer {
             return;
         }
 
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+        //GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
         // Get our current state
         State state;
         state = TrackerManager.getInstance().getStateUpdater().updateState();
         mRenderer.begin(state);
 
-        GLES20.glFrontFace(GLES20.GL_CCW);  // Back camera
+        // 设置Camera投影矩阵
+        if (state.getCameraCalibration() != null) {
+            getCurrentCamera().setProjectionMatrix(getFOV(state.getCameraCalibration()), getVideoWidth(),
+                    getVideoHeight());
+        }
+
+        //GLES20.glFrontFace(GLES20.GL_CCW);  // Back camera
 
         // We get a list of views which depend on the mode we are working on, for mono we have
         // only one view, in stereo we have three: left, right and postprocess
@@ -214,10 +309,10 @@ public class ArRenderer {
             viewport = mRenderingPrimitives.getViewport(viewID);
 
             // Set viewport for current view
-            GLES20.glViewport(viewport.getData()[0], viewport.getData()[1], viewport.getData()[2], viewport.getData()[3]);
+            //GLES20.glViewport(viewport.getData()[0], viewport.getData()[1], viewport.getData()[2], viewport.getData()[3]);
 
             // Set scissor
-            GLES20.glScissor(viewport.getData()[0], viewport.getData()[1], viewport.getData()[2], viewport.getData()[3]);
+            //GLES20.glScissor(viewport.getData()[0], viewport.getData()[1], viewport.getData()[2], viewport.getData()[3]);
 
             // Get projection matrix for the current view.
             Matrix34F projMatrix = mRenderingPrimitives.getProjectionMatrix(viewID,
@@ -244,7 +339,7 @@ public class ArRenderer {
             // This will be called for MONO, LEFT and RIGHT views, POSTPROCESS will not render the
             // frame
             if(currentView != VIEW.VIEW_POSTPROCESS)
-                mRenderingInterface.renderFrame(state, projectionMatrix);
+                this.renderFrame(state, projectionMatrix);
         }
 
         mRenderer.end();
@@ -255,9 +350,15 @@ public class ArRenderer {
     {
         mNearPlane = near;
         mFarPlane = far;
+        getCurrentCamera().setNearPlane(mNearPlane); //10
+        getCurrentCamera().setFarPlane(mFarPlane); //2500
     }
 
 
+    /**
+     * 通过opengl的方式来绘制相机预览数据
+     * @param state
+     */
     public void renderVideoBackground(State state)
     {
         if(currentView == VIEW.VIEW_POSTPROCESS)
@@ -282,13 +383,24 @@ public class ArRenderer {
         // and the calibration ensures that the augmentation matches the real world
         if (Device.getInstance().isViewerActive())
         {
-            float sceneScaleFactor = (float) getSceneScaleFactor(state.getCameraCalibration());
-            Matrix.scaleM(vbProjectionMatrix, 0, sceneScaleFactor, sceneScaleFactor, 1.0f);
+//            float sceneScaleFactor = (float) getSceneScaleFactor(state.getCameraCalibration());
+//            Matrix.scaleM(vbProjectionMatrix, 0, sceneScaleFactor, sceneScaleFactor, 1.0f);
         }
 
         GLES20.glDisable(GLES20.GL_DEPTH_TEST);
         GLES20.glDisable(GLES20.GL_CULL_FACE);
         GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+
+        // 开始绘制到模型上
+        int frameBufferId = mBackgroundRenderTarget.getFrameBufferHandle();
+        int frameBufferTextureId = mBackgroundRenderTarget.getTexture().getTextureId();
+
+        // zhf++
+        //当一个FBO绑定以后，所有的OpenGL操作将会作用在这个绑定的帧缓冲区对象上。
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, frameBufferId);
+        //把一幅空的纹理图像关联到一个FBO 一个FBO在同一个时间内可以绑定多个颜色缓冲区，每个对应FBO的一个绑定点
+        GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
+                GLES20.GL_TEXTURE_2D, frameBufferTextureId, 0);
 
         Mesh vbMesh = mRenderingPrimitives.getVideoBackgroundMesh(currentView);
 
@@ -314,6 +426,9 @@ public class ArRenderer {
         // Finally, we disable the vertex arrays
         GLES20.glDisableVertexAttribArray(vbVertexHandle);
         GLES20.glDisableVertexAttribArray(vbTexCoordHandle);
+
+        // zhf++
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
 
         SampleUtils.checkGLError("Rendering of the video background failed");
     }
@@ -402,9 +517,12 @@ public class ArRenderer {
 
         config.setSize(new Vec2I(xSize, ySize));
 
-        Log.i(LOGTAG, "Configure Video Background : Video (" + vm.getWidth()
+        Logger.d( "Configure Video Background : Video (" + vm.getWidth()
                 + " , " + vm.getHeight() + "), Screen (" + mScreenWidth + " , "
                 + mScreenHeight + "), mSize (" + xSize + " , " + ySize + ")");
+
+        mVideoWidth = vm.getWidth();
+        mVideoHeight = vm.getHeight();
 
         Renderer.getInstance().setVideoBackgroundConfig(config);
     }
@@ -466,4 +584,91 @@ public class ArRenderer {
         Log.i(LOGTAG, "Activity is in "
                 + (mIsPortrait ? "PORTRAIT" : "LANDSCAPE"));
     }
+
+
+    //---------------For rajawali---------------------------
+    @Override
+    public void onRenderSurfaceCreated(EGLConfig config, GL10 gl, int width, int height) {
+        super.onRenderSurfaceCreated(config, gl, width, height);
+
+        // Call Vuforia function to (re)initialize rendering after first use
+        // or after OpenGL ES context was lost (e.g. after onPause/onResume):
+        mArManager.onSurfaceCreated();
+
+        this.onSurfaceCreated();
+    }
+
+    @Override
+    public void onRenderSurfaceSizeChanged(GL10 gl, int width, int height) {
+        super.onRenderSurfaceSizeChanged(gl, width, height);
+
+        // Call Vuforia function to handle render surface size changes:
+        mArManager.onSurfaceChanged(width, height);
+
+        // RenderingPrimitives to be updated when some rendering change is done
+        onConfigurationChanged(width, height);
+    }
+
+
+    @Override
+    public void onRenderSurfaceDestroyed(SurfaceTexture surface) {
+        super.onRenderSurfaceDestroyed(surface);
+    }
+
+
+    @Override
+    public void onRenderFrame(GL10 gl) {
+        super.onRenderFrame(gl);
+    }
+
+    @Override
+    protected void onRender(long ellapsedRealtime, double deltaTime) {
+        super.onRender(ellapsedRealtime, deltaTime);
+        // 原始的渲染Render
+        this.render();
+    }
+
+
+
+    //--------------------------------------------------------
+    public void foundImageMarker(String trackableName, float[] modelViewMatrix) {
+        synchronized (this) {
+            transformPositionAndOrientation(modelViewMatrix);
+            onFoundImageMarker(trackableName, mPosition, mOrientation);
+        }
+    }
+
+    private void copyFloatToDoubleMatrix(float[] src, double[] dst)
+    {
+        for(mI = 0; mI < 16; mI++)
+        {
+            dst[mI] = src[mI];
+        }
+    }
+
+
+    private void transformPositionAndOrientation(float[] modelViewMatrix) {
+        mPosition.setAll(modelViewMatrix[12], -modelViewMatrix[13],
+                -modelViewMatrix[14]);
+        copyFloatToDoubleMatrix(modelViewMatrix, mModelViewMatrix);
+        mOrientation.fromMatrix(mModelViewMatrix);
+
+        if(mArManager.getScreenOrientation() == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+        {
+            mPosition.setAll(modelViewMatrix[12], -modelViewMatrix[13],
+                    -modelViewMatrix[14]);
+            mOrientation.y = -mOrientation.y;
+            mOrientation.z = -mOrientation.z;
+        }
+        else
+        {
+            mPosition.setAll(-modelViewMatrix[13], -modelViewMatrix[12],
+                    -modelViewMatrix[14]);
+            double orX = mOrientation.x;
+            mOrientation.x = -mOrientation.y;
+            mOrientation.y = -orX;
+            mOrientation.z = -mOrientation.z;
+        }
+    }
+
 }

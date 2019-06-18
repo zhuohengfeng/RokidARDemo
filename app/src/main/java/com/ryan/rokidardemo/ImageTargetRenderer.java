@@ -1,14 +1,14 @@
 package com.ryan.rokidardemo;
 
+import android.media.MediaPlayer;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
 import android.util.Log;
+import android.view.MotionEvent;
 
-import com.ryan.rokidardemo.base.BaseRenderer;
 import com.ryan.rokidardemo.utils.Logger;
 import com.ryan.rokidardemo.vuforia.ArManager;
 import com.ryan.rokidardemo.vuforia.ArRenderer;
-import com.ryan.rokidardemo.vuforia.IArRendererControl;
 import com.ryan.rokidardemo.vuforia.utils.CubeShaders;
 import com.ryan.rokidardemo.vuforia.utils.LoadingDialogHandler;
 import com.ryan.rokidardemo.vuforia.utils.MeshObject;
@@ -28,6 +28,15 @@ import com.vuforia.TrackableResult;
 import com.vuforia.TrackableResultList;
 import com.vuforia.Vuforia;
 
+import org.rajawali3d.lights.DirectionalLight;
+import org.rajawali3d.materials.Material;
+import org.rajawali3d.materials.methods.DiffuseMethod;
+import org.rajawali3d.materials.textures.ATexture;
+import org.rajawali3d.materials.textures.StreamingTexture;
+import org.rajawali3d.math.Quaternion;
+import org.rajawali3d.math.vector.Vector3;
+import org.rajawali3d.primitives.Plane;
+
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.Vector;
@@ -41,7 +50,7 @@ import java.util.Vector;
  *
  * In the renderFrame() function you can render augmentations to display over the Target
  */
-public class ImageTargetRenderer extends BaseRenderer implements IArRendererControl
+public class ImageTargetRenderer extends ArRenderer
 {
     private final WeakReference<ImageTargetActivity> mActivityRef;
 
@@ -54,9 +63,6 @@ public class ImageTargetRenderer extends BaseRenderer implements IArRendererCont
     // Object to be rendered
     private Teapot mTeapot; // 绘制的茶壶模型
 
-    private static final float BUILDING_SCALE = 0.012f;
-    private SampleApplication3DModel mBuildingsModel;
-
     private boolean mModelIsLoaded = false;
     private boolean mIsTargetCurrentlyTracked = false;
 
@@ -64,26 +70,12 @@ public class ImageTargetRenderer extends BaseRenderer implements IArRendererCont
 
     ImageTargetRenderer(ImageTargetActivity activity, ArManager manager)
     {
+        super(activity,
+                Device.MODE.MODE_AR, manager.getVideoMode(),
+                false, 10 , 2500); //0.01f, 5f   10, 2500
+
         mActivityRef = new WeakReference<>(activity);
         mArManager = manager;
-
-        // SampleAppRenderer used to encapsulate the use of RenderingPrimitives setting
-        // the device mode AR/VR and stereo mode
-        mArRenderer = new ArRenderer(this, mActivityRef.get(),
-                Device.MODE.MODE_AR, mArManager.getVideoMode(),
-                false, 0.01f , 5f);
-    }
-
-
-    public void updateRenderingPrimitives()
-    {
-        mArRenderer.updateRenderingPrimitives();
-    }
-
-
-    public void setActive(boolean active)
-    {
-        mArRenderer.setActive(active);
     }
 
 
@@ -96,20 +88,22 @@ public class ImageTargetRenderer extends BaseRenderer implements IArRendererCont
     // This function is called from the SampleAppRenderer by using the RenderingPrimitives views.
     // The state is owned by SampleAppRenderer which is controlling its lifecycle.
     // NOTE: State should not be cached outside this method.
+    @Override
     public void renderFrame(State state, float[] projectionMatrix)
     {
         // 这里绘制相机
-        mArRenderer.renderVideoBackground(state);
+        this.renderVideoBackground(state);
+
 
         // Set the device pose matrix as identity
         Matrix44F devicePoseMatrix = SampleMath.Matrix44FIdentity();
         Matrix44F modelMatrix;
 
-        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+        //GLES20.glEnable(GLES20.GL_DEPTH_TEST);
 
-        GLES20.glEnable(GLES20.GL_CULL_FACE);
-        GLES20.glCullFace(GLES20.GL_BACK);
-        GLES20.glFrontFace(GLES20.GL_CCW);   // Back camera
+        //GLES20.glEnable(GLES20.GL_CULL_FACE);
+        //GLES20.glCullFace(GLES20.GL_BACK);
+        //GLES20.glFrontFace(GLES20.GL_CCW);   // Back camera
 
         // Read device pose from the state and create a corresponding view matrix (inverse of the device pose)
         if (state.getDeviceTrackableResult() != null)
@@ -148,14 +142,28 @@ public class ImageTargetRenderer extends BaseRenderer implements IArRendererCont
                 textureIndex = trackable.getName().equalsIgnoreCase("tarmac") ? 2
                         : textureIndex;
 
+                // zhf
+                float[] modelViewProjection = new float[16];
+                float[] projectionMatrixArray = projectionMatrix;
+                float[] viewMatrixArray = devicePoseMatrix.getData();
+                float[] modelMatrixArray = modelMatrix.getData();
+                Matrix.translateM(modelMatrixArray, 0, 0, 0, OBJECT_SCALE_FLOAT);
+                Matrix.scaleM(modelMatrixArray, 0, OBJECT_SCALE_FLOAT, OBJECT_SCALE_FLOAT, OBJECT_SCALE_FLOAT);
+                // Combine device pose (view matrix) with model matrix
+                Matrix.multiplyMM(modelMatrixArray, 0, viewMatrixArray, 0, modelMatrixArray, 0);
+                // Do the final combination with the projection matrix
+                Matrix.multiplyMM(modelViewProjection, 0, projectionMatrixArray, 0, modelMatrixArray, 0);
+                foundImageMarker(trackable.getName(), modelViewProjection);
+
+
                 // 识别到了，绘制模型
-                renderModel(projectionMatrix, devicePoseMatrix.getData(), modelMatrix.getData(), textureIndex);
+                //renderModel(projectionMatrix, devicePoseMatrix.getData(), modelMatrix.getData(), textureIndex);
 
                 SampleUtils.checkGLError("Image Targets renderFrame");
             }
         }
 
-        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+        //GLES20.glDisable(GLES20.GL_DEPTH_TEST);
     }
 
     @Override
@@ -198,16 +206,7 @@ public class ImageTargetRenderer extends BaseRenderer implements IArRendererCont
         if(!mModelIsLoaded)
         {
             mTeapot = new Teapot();
-
-            try {
-                mBuildingsModel = new SampleApplication3DModel();
-                mBuildingsModel.loadModel(mActivityRef.get().getResources().getAssets(),
-                        "ImageTargets/Buildings.txt");
-                mModelIsLoaded = true;
-            } catch (IOException e)
-            {
-                Logger.e("Unable to load buildings");
-            }
+            mModelIsLoaded = true;
 
             // Hide the Loading Dialog
             mActivityRef.get().loadingDialogHandler
@@ -301,6 +300,63 @@ public class ImageTargetRenderer extends BaseRenderer implements IArRendererCont
     boolean isTargetCurrentlyTracked()
     {
         return mIsTargetCurrentlyTracked;
+    }
+
+    //=========================================================
+    private Plane settingItem;
+
+    @Override
+    protected void initScene() {
+        DirectionalLight light = new DirectionalLight(0.2f, -1f, 0f);
+        light.setPower(.7f);
+        getCurrentScene().addLight(light);
+
+        light = new DirectionalLight(0.2f, 1f, 0f);
+        light.setPower(1f);
+        getCurrentScene().addLight(light);
+
+//        getCurrentCamera().setFarPlane(100);
+        getCurrentCamera().enableLookAt();
+        getCurrentCamera().setLookAt(0, 0, 0);
+
+        try {
+            settingItem = new Plane(8, 3, 1, 1);
+            Material sphereMaterial = new Material();
+            sphereMaterial.setDiffuseMethod(new DiffuseMethod.Lambert());
+            sphereMaterial.setColorInfluence(0);
+            org.rajawali3d.materials.textures.Texture itemTexture = new org.rajawali3d.materials.textures.Texture("timeTexture", R.drawable.bt_item);
+            try {
+                sphereMaterial.addTexture(itemTexture);
+            } catch (ATexture.TextureException e) {
+                e.printStackTrace();
+            }
+
+            settingItem.setMaterial(sphereMaterial);
+            settingItem.setPosition(0, 0, -20);
+            getCurrentScene().addChildAt(settingItem, 0);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    @Override
+    protected void onFoundImageMarker(String trackableName, Vector3 position, Quaternion orientation) {
+        Logger.d("onFoundImageMarker trackableName="+trackableName+", orientation="+orientation);
+        settingItem.setVisible(true);
+        settingItem.setPosition(position);
+        settingItem.setOrientation(orientation);
+    }
+
+    @Override
+    public void onOffsetsChanged(float xOffset, float yOffset, float xOffsetStep, float yOffsetStep, int xPixelOffset, int yPixelOffset) {
+
+    }
+
+    @Override
+    public void onTouchEvent(MotionEvent event) {
+
     }
 }
 

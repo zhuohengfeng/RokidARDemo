@@ -36,6 +36,8 @@ import com.vuforia.Tracker;
 import com.vuforia.TrackerManager;
 import com.vuforia.Vuforia;
 
+import org.rajawali3d.view.SurfaceView;
+
 import java.util.ArrayList;
 import java.util.Vector;
 
@@ -48,7 +50,8 @@ public class ImageTargetActivity extends BaseActivity implements IArControl {
     private int mCurrentDatasetSelectionIndex = 0;
     private final ArrayList<String> mDatasetStrings = new ArrayList<>();
 
-    private SampleApplicationGLView mGlView;
+//    private SampleApplicationGLView mGlView;
+    private SurfaceView mGlView;
 
     private ImageTargetRenderer mRenderer;
 
@@ -90,8 +93,6 @@ public class ImageTargetActivity extends BaseActivity implements IArControl {
         mTextures.add(Texture.loadTextureFromApk("TextureTeapotBlue.png",
                 getAssets()));
         mTextures.add(Texture.loadTextureFromApk("TextureTeapotRed.png",
-                getAssets()));
-        mTextures.add(Texture.loadTextureFromApk("ImageTargets/Buildings.png",
                 getAssets()));
     }
 
@@ -146,14 +147,13 @@ public class ImageTargetActivity extends BaseActivity implements IArControl {
         int stencilSize = 0;
         boolean translucent = Vuforia.requiresAlpha();
 
-        // TODO 这里替换
-        mGlView = new SampleApplicationGLView(getApplicationContext());
-        mGlView.init(translucent, depthSize, stencilSize);
+        mGlView = new SurfaceView(getApplicationContext());
+//        mGlView.init(translucent, depthSize, stencilSize);
 
         mRenderer = new ImageTargetRenderer(this, mArManager);
         mRenderer.setTextures(mTextures);
-        mGlView.setRenderer(mRenderer);
-        mGlView.setPreserveEGLContextOnPause(true);
+        mGlView.setSurfaceRenderer(mRenderer);
+//        mGlView.setPreserveEGLContextOnPause(true);
 
         setRendererReference(mRenderer);
     }

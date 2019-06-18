@@ -7,6 +7,7 @@ import android.os.Build;
 import android.os.Bundle;
 
 import com.ryan.rokidardemo.utils.Logger;
+import com.ryan.rokidardemo.vuforia.ArRenderer;
 
 public class BaseActivity extends Activity {
 
@@ -15,7 +16,7 @@ public class BaseActivity extends Activity {
 
     private int mDeviceOrientation;
 
-    protected BaseRenderer mBaseRenderer;
+    protected ArRenderer mBaseRenderer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,7 +50,7 @@ public class BaseActivity extends Activity {
                         {
                             if (mBaseRenderer != null)
                             {
-                                mBaseRenderer.onConfigurationChanged();
+                                //mBaseRenderer.onConfigurationChanged();
                             }
                         }
 
@@ -98,7 +99,7 @@ public class BaseActivity extends Activity {
     }
 
 
-    public void setRendererReference(BaseRenderer renderer)
+    public void setRendererReference(ArRenderer renderer)
     {
         mBaseRenderer = renderer;
     }
